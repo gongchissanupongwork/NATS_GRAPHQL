@@ -9,9 +9,9 @@ export const mockMessages = {
   },
   'agent.tools.updated': {
     data: [
-      { name: 'Suricata IDS', status: 'ACTIVE' },
-      { name: 'OSQuery', status: 'INACTIVE' },
-      { name: 'YARA Scanner', status: 'DEGRADED' },
+      { name: 'Suricata IDS', status: 'active' },
+      { name: 'OSQuery', status: 'inactive' },
+      { name: 'YARA Scanner', status: 'missing' },
     ],
   },
   'agent.recommendation.updated': {
