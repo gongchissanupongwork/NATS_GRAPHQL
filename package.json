@@ -1,16 +1,21 @@
 {
   "main": "src/server.ts",
   "scripts": {
-    "start": "ts-node server/index.ts",
-    "dev": "nodemon server/index.ts",
+    "start": "ts-node server/SUB_Server.ts",
+    "dev": "nodemon server/SUB_Server.ts",
     "pub": "ts-node server/publisher.ts both",
     "pub-all": "ts-node server/publisher.ts all",
     "pub-random": "ts-node server/publisher.ts random",
     "pub-random-interval": "ts-node server/publisher.ts random 1000 15000",
-    "client": "ts-node client/index.ts"  },
+    "client": "ts-node client/index.ts"
+  },
   "dependencies": {
+    "@apollo/client": "^3.13.8",
     "@apollo/server": "^4.1.1",
     "@graphql-tools/schema": "^9.0.10",
+    "@mui/material": "^7.2.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "axios": "^1.6.8",
     "body-parser": "^1.20.1",
     "cors": "^2.8.5",
@@ -21,6 +26,7 @@
     "graphql-ws": "^5.11.2",
     "nats": "^2.29.3",
     "nodemon": "^2.0.20",
+    "react": "^19.1.0",
     "ts-node": "^10.9.1",
     "ws": "^8.11.0"
   },

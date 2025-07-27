@@ -18,9 +18,9 @@ export const resolvers = {
       subscribe: () => pubsub.asyncIterator(['onToolStatusUpdated']),
       resolve: (payload: any) => wrapInArray(payload.onToolStatusUpdated),
     },
-    onRecomendationUpdated: {
-      subscribe: () => pubsub.asyncIterator(['onRecomendationUpdated']),
-      resolve: (payload: any) => wrapInArray(payload.onRecomendationUpdated),
+    onRecommendationUpdated: {
+      subscribe: () => pubsub.asyncIterator(['onRecommendationUpdated']),
+      resolve: (payload: any) => wrapInArray(payload.onRecommendationUpdated),
     },
     onChecklistItemUpdated: {
       subscribe: () => pubsub.asyncIterator(['onChecklistItemUpdated']),

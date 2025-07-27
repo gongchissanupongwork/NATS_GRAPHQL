@@ -7,5 +7,5 @@
     "outDir": "dist",
     "skipLibCheck": true
   },
-  "include": ["server", "client"]
+  "include": ["server", "client", "frontend_agent/src/app/dev-soc/page.tsx", "frontend_agent/src/app/components/componentsAgent.tsx"]
 }

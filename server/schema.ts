@@ -10,7 +10,7 @@ export const typeDefs = gql`
     status: String
   }
   
-  type Recomendation {
+  type Recommendation {
     description: String
     content: String
   }
@@ -40,7 +40,7 @@ export const typeDefs = gql`
   type Subscription {
     onOverviewUpdated: [OverviewData]
     onToolStatusUpdated: [ToolStatus]
-    onRecomendationUpdated: [Recomendation] 
+    onRecommendationUpdated: [Recommendation]
     onChecklistItemUpdated: [ChecklistItemData]
     onExecutiveItemUpdated: [ExecutiveItemData]
     onAttackTypeUpdated: [AttackType]

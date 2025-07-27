@@ -14,7 +14,7 @@ export const mockMessages = {
       { name: 'YARA Scanner', status: 'DEGRADED' },
     ],
   },
-  'agent.recomendation.updated': {
+  'agent.recommendation.updated': {
     data: [
       {
         description: 'อัปเดต rules ของ IDS',
@@ -67,13 +67,13 @@ export const mockMessages = {
   'agent.timeline.updated': {
     data: [
       {
-        stage: 'Initialization',
-        status: 'SUCCESS',
+        stage: 'Received Alert',
+        status: 'success',
         errorMessage: '',
       },
       {
-        stage: 'Data Collection',
-        status: 'FAILED',
+        stage: 'Type Agent',
+        status: 'error',
         errorMessage: 'Disk quota exceeded',
       },
     ],

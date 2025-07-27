@@ -1,0 +1,441 @@
+$breakpoint-xs: 0;
+$breakpoint-sm: 600px;
+$breakpoint-md: 900px;
+$breakpoint-lg: 1200px;
+$breakpoint-xl: 1536px;
+
+/* ----------------------------------------------------------- */
+/* 🎨 THEME COLORS — ไล่เฉดสีดำ → ม่วงเข้ม → ม่วงอ่อน (ใช้ได้ทั่วระบบ)       */
+/* ----------------------------------------------------------- */
+$purple-darkest: #1a102c;
+$purple-dark: #3b0764;
+$purple-base: #7e22ce;
+$purple-mid: #ad84ff;
+$purple-light: #c084fc;
+$purple-lightest: #f3e8ff;
+
+/* ----------------------------------------------------------- */
+/* 🎯 Status Colors — สีแสดงสถานะสำหรับสถานะต่าง ๆ ของระบบ                  */
+/* ----------------------------------------------------------- */
+$status-active: #4ade80;
+$status-enabled: #4ade80;
+$status-inactive: #facc15;
+$status-missing: #f87171;
+$status-fallback: $purple-light;
+
+$confidence-low: $status-active;
+$confidence-medium: $status-inactive;
+$confidence-high: $status-missing;
+$confidence-fallback: $status-fallback;
+
+@function get-confidence-color($confidence) {
+  @if $confidence >= 0.8 {
+    @return $confidence-high;
+  } @else if $confidence >= 0.5 {
+    @return $confidence-medium;
+  } @else if $confidence >= 0 {
+    @return $confidence-low;
+  } @else {
+    @return $confidence-fallback;
+  }
+}
+/* ----------------------------------------------------------- */
+/* 📦 LAYOUT STYLES — โครงสร้าง Layout + Section                             */
+/* ----------------------------------------------------------- */
+
+.card-wrapper {
+  padding: 24px;
+  border: 2px solid #8e5df8ff;
+  border-radius: 20px;
+  box-shadow: 0px 4px 30px rgba(0, 0, 0, 0.25);
+  color: $purple-lightest;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 8px;
+  margin-top: 8px;
+}
+
+.overviewAgent-card {
+  padding: 24px;
+  border: 2px solid #8e5df8ff;
+  border-radius: 20px;
+  box-shadow: 0px 4px 30px rgba(0, 0, 0, 0.25);
+  color: $purple-lightest;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 16px;
+  margin-top: 8px;
+}
+
+.list-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: $purple-light;
+  margin-bottom: 4px;
+}
+
+.container-max-width {
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  max-width: 12000px;
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 10vh;
+}
+
+.stack-section {
+  margin-bottom: 48px;
+}
+
+.responsive-card-grid {
+  display: grid;
+  grid-template-columns: 1fr; 
+  gap: 24px; 
+
+  @media (min-width: $breakpoint-lg) { 
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: $breakpoint-sm) { 
+    gap: 24px;
+  }
+}
+
+.toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ----------------------------------------------------------- */
+/* 📝 TYPOGRAPHY — ข้อความและหัวข้อ                                          */
+/* ----------------------------------------------------------- */
+
+.title-text {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 4px;
+  color: $purple-lightest;
+}
+
+.content-text {
+  font-size: 16px;
+  color: #ddd6fe;
+}
+
+.small-label {
+  font-size: 14px;
+  color: #c4b5fd;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.centered-text {
+  text-align: center;
+  color: $purple-lightest;
+}
+
+/* ----------------------------------------------------------- */
+/* 🦶 FOOTER STYLE — ใช้สำหรับ footer component ที่ด้านล่างหน้าจอ          */
+/* ----------------------------------------------------------- */
+
+.footer-wrapper {
+  width: 100%;
+  margin-top: 4px;
+  padding: 24px;
+  background: linear-gradient(177.21deg, rgba(101, 82, 177, 0.36) -1.28%, rgba(200, 207, 238, 0.06) 102.38%);
+  border-top: 1px solid rgba(147, 51, 234, 0.3);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: $purple-lightest;
+  box-shadow: 0 0 10px rgba(147, 51, 234, 0.2);
+}
+
+.footer-role-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #c4b5fd;
+}
+
+/* ----------------------------------------------------------- */
+/* 🟣 ROLE BUTTONS — ปุ่มเลือกสถานะต่าง ๆ                                   */
+/* ----------------------------------------------------------- */
+
+.role-button-base {
+  padding: 8px 16px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+  outline: none;
+  border: 1px solid transparent;
+
+  &:focus {
+    box-shadow: 0 0 0 2px $purple-mid;
+    border-color: $purple-mid;
+  }
+}
+
+.role-button-active {
+  background-color: $purple-dark;
+  color: $purple-lightest;
+  border: 1px solid $purple-mid;
+
+  &:hover {
+    background-color: $purple-base;
+  }
+}
+
+.role-button-inactive {
+  background-color: #ede9fe;
+  color: $purple-base;
+  border: 1px solid $purple-light;
+
+  &:hover {
+    background-color: $purple-light;
+    color: $purple-dark;
+  }
+}
+
+/* ----------------------------------------------------------- */
+/* ⏱️ TIMELINE — สไตล์สำหรับ timeline progress                              */
+/* ----------------------------------------------------------- */
+
+.timeline-wrapper {
+  display: flex;
+  min-width: 120px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  border-radius: 24px;
+  background: linear-gradient(to left, #050b27ff, #6552B1);
+  color: #f3f4f6;
+  box-shadow: 0 4px 20px rgba(147, 51, 234, 0.3);
+  border: 1px solid $purple-mid;
+  overflow-x: auto;
+}
+
+.timeline-stage-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.timeline-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  z-index: 10;
+  border: 4px solid;
+  transition: all 0.5s ease-in-out;
+  box-shadow: 0 0 0 4px rgba(169, 137, 255, 0.4);
+  opacity: 1;
+}
+
+.timeline-dot-active {
+  background-color: #6F26FF;
+  border-color: #9b69ffff;
+}
+
+.timeline-dot-inactive {
+  background-color: #334155;
+  border-color: #64748b;
+  box-shadow: none;
+}
+
+.timeline-label {
+  font-size: 14px;
+  margin-top: 4px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity 0.7s ease;
+  letter-spacing: 0.2px;
+}
+
+.timeline-label-active {
+  color: $purple-lightest;
+  opacity: 1;
+}
+
+.timeline-label-inactive {
+  color: #94a3b8;
+  opacity: 0.6;
+}
+
+.timeline-line-wrapper {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 100%;
+  height: 4px;
+  z-index: 0;
+  transform: translateX(-2px);
+}
+
+.timeline-line-base {
+  width: 100%;
+  height: 100%;
+  background-color: #475569;
+  border-radius: 2px;
+}
+
+.timeline-line-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: #facc15;
+  border-radius: 2px;
+  transition: all 0.5s ease;
+  transform-origin: left;
+}
+
+.timeline-dot-error {
+  background-color: #ff0000;
+  border-color: rgb(255, 102, 0);
+}
+
+.timeline-label-error {
+  color: red;
+  font-weight: bold;
+}
+
+/* ----------------------------------------------------------- */
+/* 🏠 HOME PAGE STYLES — ใช้สำหรับหน้าแรก HomePage                          */
+/* ----------------------------------------------------------- */
+
+.home-page-wrapper {
+  padding: 4px;
+  min-height: 10vh;
+}
+
+.home-page-title {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 32px;
+  color: $purple-lightest;
+}
+
+
+/* ----------------------------------------------------------- */
+/* 📦 AGENT SUMMARY LAYOUT STYLES — โครงสร้าง Layout + Section               */
+/* ----------------------------------------------------------- */
+
+
+/* ✅ Layout หลักแบบ Grid 2 คอลัมน์ (responsive) */
+.gridLayout {
+  display: grid;
+  grid-template-columns: 1fr; 
+  gap: 24px; 
+  padding: 24px; 
+
+  background-color: #1e1b4b;
+  border-radius: 16px;
+
+  @media (min-width: $breakpoint-md) { 
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ✅ กรอบ Section Card หลักของแต่ละส่วนใน dashboard */
+.sectionWrapper {
+  background: linear-gradient(177.21deg, rgba(101, 82, 177, 0.36) -1.28%, rgba(200, 207, 238, 0.06) 102.38%);
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 24px;
+  box-shadow: 0px 4px 30px rgba(0, 0, 0, 0.25);
+  border: 1px solid $purple-mid;
+}
+
+/* ✅ หัวข้อ section (ใหญ่ สะดุดตา) */
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: $purple-lightest;
+  margin-bottom: 8px;
+}
+
+/* ✅ กลุ่มแนวตั้งสำหรับ section ที่ต้องการวางเรียงแนวตั้งและเว้นช่องว่าง */
+.verticalGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ✅ spacing ของ card ภายใน section (จัดเป็นคอลัมน์ มีช่องว่างระหว่าง card) */
+.cardSpacing {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ✅ ตัวช่วยสำหรับ container กว้างเต็มพื้นที่ */
+.fullWidthContainer {
+  width: 100%;
+}
+
+/* ✅ ข้อความแบบกึ่งกลาง (text-align:center) */
+.centeredText {
+  text-align: center;
+  color: $purple-lightest;
+}
+
+/* ✅ ป้ายข้อความขนาดเล็ก สีม่วงอ่อน */
+.smallLabel {
+  font-size: 14px;
+  color: #d8b4fe; // purple-300
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ✅ กล่องเน้นสี (highlight box) — สีม่วง + เงาเหลือง เพื่อดึงความสนใจ */
+.highlightBox {
+  background-color: #a855f7; 
+  color: #fef9c3;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+}
