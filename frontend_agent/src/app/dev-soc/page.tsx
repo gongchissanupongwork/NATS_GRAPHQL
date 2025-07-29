@@ -19,6 +19,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
+import { ApolloProvider } from '@apollo/client'
+import client from '../components/apolloClient'
 
 
 // กำหนดสีตามที่ SCSS ใช้ (ตัวอย่างสีเดียวกับ SCSS)
@@ -603,9 +605,11 @@ export default function HomePage() {
   };
 
   return (
-    <main className="home-page-wrapper">
-      {renderPage()}
-      <Footer role={role} setRole={setRole} />
-    </main>
-  );
+    <ApolloProvider client={client}>
+      <main className="home-page-wrapper">
+        {renderPage()}
+        <Footer role={role} setRole={setRole} />
+      </main>
+    </ApolloProvider>
+  )
 }

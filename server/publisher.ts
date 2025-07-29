@@ -1,9 +1,8 @@
-import { connect, StringCodec } from 'nats'
+import { connect, JSONCodec, NatsConnection } from 'nats'
 
 export const mockMessages = {
   'agent.overview.updated': {
-    data: 
-      {
+    data: {
       description: '📊 ระบบแสดงผลรวมสถานะการปฏิบัติการล่าสุด',
     },
   },
@@ -80,44 +79,50 @@ export const mockMessages = {
   },
 }
 
-// 🧪 ส่งทุก topic ครบ 1 รอบ
-async function publishAll(nc: Awaited<ReturnType<typeof connect>>) {
-  const sc = StringCodec()
-  for (const [topic, payload] of Object.entries(mockMessages)) {
-    nc.publish(topic, sc.encode(JSON.stringify(payload)))
-    console.log(`📤 Published to ${topic}`, payload.data)
+async function publishAll(nc: NatsConnection) {
+  const jc = JSONCodec()
+  const js = nc.jetstream()
+
+  for (const [subject, payload] of Object.entries(mockMessages)) {
+    const pubAck = await js.publish(subject, jc.encode(payload))
+    console.log(`📤 Published to ${subject}`, {
+      seq: pubAck.seq,
+      stream: pubAck.stream,
+      payload: payload.data,
+    })
   }
 }
 
-// 🔁 ส่งแบบ random ทุก interval จนหยุดหลัง duration
-async function randomPublishWithTimeout(nc: Awaited<ReturnType<typeof connect>>, intervalMs = 2000, durationMs = 10000) {
-  const sc = StringCodec()
+async function randomPublishWithTimeout(
+  nc: NatsConnection,
+  intervalMs = 2000,
+  durationMs = 10000
+) {
+  const jc = JSONCodec()
+  const js = nc.jetstream()
   const topics = Object.keys(mockMessages) as (keyof typeof mockMessages)[]
 
-  let intervalId: NodeJS.Timeout
-
-  const stop = () =>
-    new Promise<void>((resolve) => {
-      clearInterval(intervalId)
-      setTimeout(async () => {
-        console.log('🛑 Stopping publisher...')
-        await nc.drain()
-        console.log('✅ Connection drained and closed')
-        resolve()
-      }, 500)
-    })
-
-  intervalId = setInterval(() => {
+  const intervalId = setInterval(async () => {
     const topic = topics[Math.floor(Math.random() * topics.length)]
     const { data } = mockMessages[topic]
-
     const payload = { data }
-  nc.publish(topic, sc.encode(JSON.stringify(payload)))
-  console.log(`🎲 [Random] Published to ${topic}:`, data)
-}, intervalMs)
+    const ack = await js.publish(topic, jc.encode(payload))
+    console.log(`🎲 [Random] Published to ${topic}`, {
+      seq: ack.seq,
+      stream: ack.stream,
+      payload: data,
+    })
+  }, intervalMs)
 
-  await new Promise<void>((resolve) => setTimeout(() => resolve(), durationMs))
-  await stop()
+  return new Promise<void>((resolve) => {
+    setTimeout(async () => {
+      clearInterval(intervalId)
+      console.log('🛑 Stopping publisher...')
+      await nc.drain()
+      console.log('✅ Connection drained and closed')
+      resolve()
+    }, durationMs)
+  })
 }
 
 async function main() {
@@ -131,7 +136,7 @@ async function main() {
     process.exit(1)
   }
 
-  const nc = await connect({ servers: 'nats://localhost:4222' })
+  const nc = await connect({ servers: process.env.NATS_SERVER || 'nats://localhost:4222' })
 
   if (mode === 'all' || mode === 'both') {
     console.log('🚀 Publishing all messages once...')
@@ -147,4 +152,6 @@ async function main() {
   }
 }
 
-main()
+main().catch((err) => {
+  console.error('🔥 Publisher error:', err)
+})

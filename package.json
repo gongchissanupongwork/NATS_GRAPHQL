@@ -3,11 +3,13 @@
   "scripts": {
     "start": "ts-node server/SUB_Server.ts",
     "dev": "nodemon server/SUB_Server.ts",
+    "setup": "ts-node server/setupStream.ts",
     "pub": "ts-node server/publisher.ts both",
     "pub-all": "ts-node server/publisher.ts all",
     "pub-random": "ts-node server/publisher.ts random",
     "pub-random-interval": "ts-node server/publisher.ts random 1000 15000",
-    "client": "ts-node client/index.ts"
+    "client": "ts-node client/index.ts",
+    "apollo": "ts-node server/apollo.ts"
   },
   "dependencies": {
     "@apollo/client": "^3.13.8",
