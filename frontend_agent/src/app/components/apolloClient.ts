@@ -1,19 +1,25 @@
 'use client';
-import { ApolloClient, HttpLink, InMemoryCache, split } from '@apollo/client';
+import {
+  ApolloClient,
+  HttpLink,
+  InMemoryCache,
+  split,
+} from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
-import { WebSocketLink } from '@apollo/client/link/ws';
+import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
+import { createClient } from 'graphql-ws';
 import { getMainDefinition } from '@apollo/client/utilities';
 
 /**
- * 🎯 Utility: ดึง token จาก localStorage (หรือจุดอื่นที่คุณจัดการไว้)
+ * 🎯 ดึง token จาก localStorage
  */
 function getToken() {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('token'); // เปลี่ยนตามกลไกการจัดเก็บ token ของคุณ
+  return localStorage.getItem('token');
 }
 
 /**
- * 🔐 authLink สำหรับ HTTP request
+ * 🔐 authLink สำหรับ HTTP (query/mutation)
  */
 const authLink = setContext((_, { headers }) => {
   const token = getToken();
@@ -26,31 +32,22 @@ const authLink = setContext((_, { headers }) => {
 });
 
 /**
- * 🔌 WebSocketLink สำหรับ subscription
+ * 🔌 GraphQLWsLink สำหรับ subscription
  */
 function createWsLink() {
   if (typeof window === 'undefined') return null;
 
-  return new WebSocketLink({
-    uri: process.env.WS_GQL_API as string,
-    options: {
-      reconnect: true,
-      reconnectionAttempts: 5,
-      timeout: 30000,
-      lazy: true,
+  return new GraphQLWsLink(
+    createClient({
+      url: 'ws://localhost:4000/graphql', // ใช้ wss:// ถ้า HTTPS
       connectionParams: () => {
         const token = getToken();
         return {
           authorization: token ? `Bearer ${token}` : '',
         };
       },
-      connectionCallback: (error: any) => {
-        if (error) {
-          console.error('WS Connection error:', error);
-        }
-      },
-    },
-  });
+    })
+  );
 }
 
 /**
@@ -58,7 +55,7 @@ function createWsLink() {
  */
 const createAIApolloClient = () => {
   const httpLink = new HttpLink({
-    uri: process.env.GQL_API,
+    uri: 'http://localhost:4000/graphql', // ❗ เปลี่ยนจาก ws:// เป็น http://
   });
 
   const wsLink = createWsLink();
