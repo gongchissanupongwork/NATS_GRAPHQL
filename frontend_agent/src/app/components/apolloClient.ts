@@ -1,13 +1,22 @@
-// apolloClient.ts
+'use client';
 import { ApolloClient, HttpLink, InMemoryCache, split } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
-import { getSession } from 'next-auth/react';
 import { WebSocketLink } from '@apollo/client/link/ws';
 import { getMainDefinition } from '@apollo/client/utilities';
 
-const authLink = setContext(async (_, { headers }) => {
-  const session = await getSession();
-  const token = session?.user?.token;
+/**
+ * 🎯 Utility: ดึง token จาก localStorage (หรือจุดอื่นที่คุณจัดการไว้)
+ */
+function getToken() {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('token'); // เปลี่ยนตามกลไกการจัดเก็บ token ของคุณ
+}
+
+/**
+ * 🔐 authLink สำหรับ HTTP request
+ */
+const authLink = setContext((_, { headers }) => {
+  const token = getToken();
   return {
     headers: {
       ...headers,
@@ -16,48 +25,63 @@ const authLink = setContext(async (_, { headers }) => {
   };
 });
 
-const httpLink = new HttpLink({
-  uri: process.env.NEXT_PUBLIC_GQL_API, // กำหนดใน .env.local
-});
+/**
+ * 🔌 WebSocketLink สำหรับ subscription
+ */
+function createWsLink() {
+  if (typeof window === 'undefined') return null;
 
-const wsLink = typeof window !== 'undefined' ? new WebSocketLink({
-  uri: process.env.NEXT_PUBLIC_WS_GQL_API as string,
-  options: {
-    reconnect: true,
-    lazy: true,
-    timeout: 30000,
-    connectionParams: async () => {
-      const session = await getSession();
-      const token = session?.user?.token;
-      return {
-        authorization: token ? `Bearer ${token}` : '',
-      };
-    },
-    connectionCallback: (error) => {
-      if (error) {
-        console.error('WS Connection error:', error);
-      }
-    },
-  },
-}) : null;
-
-const splitLink = typeof window !== 'undefined' && wsLink
-  ? split(
-      ({ query }) => {
-        const definition = getMainDefinition(query);
-        return (
-          definition.kind === 'OperationDefinition' &&
-          definition.operation === 'subscription'
-        );
+  return new WebSocketLink({
+    uri: process.env.WS_GQL_API as string,
+    options: {
+      reconnect: true,
+      reconnectionAttempts: 5,
+      timeout: 30000,
+      lazy: true,
+      connectionParams: () => {
+        const token = getToken();
+        return {
+          authorization: token ? `Bearer ${token}` : '',
+        };
       },
-      wsLink,
-      httpLink,
-    )
-  : httpLink;
+      connectionCallback: (error: any) => {
+        if (error) {
+          console.error('WS Connection error:', error);
+        }
+      },
+    },
+  });
+}
 
-const client = new ApolloClient({
-  cache: new InMemoryCache({ addTypename: false }),
-  link: authLink.concat(splitLink),
-});
+/**
+ * 🚀 Apollo Client Factory
+ */
+const createAIApolloClient = () => {
+  const httpLink = new HttpLink({
+    uri: process.env.GQL_API,
+  });
 
-export default client;
+  const wsLink = createWsLink();
+
+  const splitLink =
+    typeof window !== 'undefined' && wsLink
+      ? split(
+          ({ query }) => {
+            const definition = getMainDefinition(query);
+            return (
+              definition.kind === 'OperationDefinition' &&
+              definition.operation === 'subscription'
+            );
+          },
+          wsLink,
+          httpLink
+        )
+      : httpLink;
+
+  return new ApolloClient({
+    cache: new InMemoryCache({ addTypename: false }),
+    link: authLink.concat(splitLink),
+  });
+};
+
+export default createAIApolloClient;

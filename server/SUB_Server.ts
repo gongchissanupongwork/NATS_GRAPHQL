@@ -4,83 +4,20 @@ import cors from 'cors'
 import bodyParser from 'body-parser'
 import { ApolloServer } from '@apollo/server'
 import { expressMiddleware } from '@apollo/server/express4'
-import { makeExecutableSchema } from '@graphql-tools/schema'
 import { WebSocketServer } from 'ws'
 import { useServer } from 'graphql-ws/lib/use/ws'
-import {
-  connect,
-  JSONCodec,
-  consumerOpts,
-  JetStreamPullSubscription,
-  NatsConnection,
-} from 'nats'
-import { PubSub } from 'graphql-subscriptions'
-import gql from 'graphql-tag'
+import { makeExecutableSchema } from '@graphql-tools/schema'
+import { connect, JSONCodec, Subscription } from 'nats'
 
-import { resolvers } from './resolvers'
+import { typeDefs } from './schema'
+import { resolvers, pubsub } from './resolvers'
+import { transformNATSDataToGraphQLInput, RawNATSMessage, AIAgentSummaryInput } from './transform'
 
-// === PubSub สำหรับ GraphQL Subscription ===
-export const pubsub = new PubSub()
-
-// === GraphQL Schema Definition ===
-export const typeDefs = gql`
-  type OverviewData {
-    description: String
-  }
-
-  type ToolStatus {
-    name: String
-    status: String
-  }
-
-  type Recommendation {
-    description: String
-    content: String
-  }
-
-  type ChecklistItemData {
-    title: String
-    content: String
-  }
-
-  type ExecutiveItemData {
-    title: String
-    content: String
-  }
-
-  type AttackType {
-    tacticID: String
-    tacticName: String
-    confidence: Float
-  }
-
-  type TimelineData {
-    stage: String
-    status: String
-    errorMessage: String
-  }
-
-  type Subscription {
-    onOverviewUpdated: [OverviewData]
-    onToolStatusUpdated: [ToolStatus]
-    onRecommendationUpdated: [Recommendation]
-    onChecklistItemUpdated: [ChecklistItemData]
-    onExecutiveItemUpdated: [ExecutiveItemData]
-    onAttackTypeUpdated: [AttackType]
-    onTimelineUpdated: [TimelineData]
-  }
-
-  type Query {
-    _empty: String
-  }
-`
-
-// === คอนฟิกหลัก ===
 const PORT = 4000
 const NATS_URL = 'nats://localhost:4222'
 
-// Mapping จาก NATS subject → GraphQL subscription field
-const topicToFieldMap: Record<string, string> = {
+// Mapping NATS subjects → GraphQL subscription fields
+const topicToFieldMap: Record<string, keyof typeof resolvers.Subscription> = {
   'agent.overview.updated': 'onOverviewUpdated',
   'agent.tools.updated': 'onToolStatusUpdated',
   'agent.recommendation.updated': 'onRecommendationUpdated',
@@ -91,105 +28,106 @@ const topicToFieldMap: Record<string, string> = {
 }
 
 async function start() {
-  let serverCleanup: ReturnType<typeof useServer> | null = null
-  let natsConnection: NatsConnection | null = null
-
-  // ====== สร้าง Express + HTTP Server ======
   const app = express()
   const httpServer = http.createServer(app)
 
-  try {
-    // ====== สร้าง GraphQL schema ======
-    const schema = makeExecutableSchema({ typeDefs, resolvers })
+  // GraphQL schema ที่รวม typeDefs และ resolvers
+  const schema = makeExecutableSchema({ typeDefs, resolvers })
 
-    // ====== Apollo Server Setup ======
-    // สร้าง instance Apollo Server จาก schema ที่ทำไว้
-    const apolloServer = new ApolloServer({ schema })
-    await apolloServer.start()
+  // ตั้งค่า WebSocket server สำหรับ GraphQL Subscriptions
+  const wsServer = new WebSocketServer({ server: httpServer, path: '/graphql' })
+  const serverCleanup = useServer({ schema }, wsServer)
 
-    // ====== WebSocket Server สำหรับ GraphQL Subscription (graphql-ws) ======
-    const wsServer = new WebSocketServer({
-      server: httpServer,
-      path: '/graphql',
-    })
-    // เชื่อม graphql-ws เข้ากับ schema
-    serverCleanup = useServer({ schema }, wsServer)
+  // ตั้งค่า Apollo Server สำหรับ GraphQL HTTP
+  const apolloServer = new ApolloServer({ schema })
+  await apolloServer.start()
 
-    // ====== Middleware HTTP (Apollo + CORS + bodyParser) ======
-    app.use(
-      '/graphql',
-      cors(),
-      bodyParser.json(),
-      expressMiddleware(apolloServer)
-    )
+  // Middleware สำหรับ REST/GraphQL HTTP endpoint
+  app.use(
+    '/graphql',
+    cors(),
+    bodyParser.json(),
+    expressMiddleware(apolloServer)
+  )
 
-    // ====== เชื่อมต่อ NATS JetStream และ Pull Subscribe ======
-    natsConnection = await connect({ servers: NATS_URL })
-    const js = natsConnection.jetstream()
-    const jc = JSONCodec()
+  // Start HTTP/WebSocket server
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`)
+    console.log(`📡 Subscriptions ready at ws://localhost:${PORT}/graphql`)
+  })
 
-    for (const [subject, field] of Object.entries(topicToFieldMap)) {
-      const durableName = `${field}-consumer`
+  // === NATS: Connect & Listen ===
+  const nc = await connect({ servers: NATS_URL })
+  const jc = JSONCodec()
+  const subscriptions: Subscription[] = []
 
-      const opts = consumerOpts()
-      opts.durable(durableName)
-      opts.manualAck()
-      opts.ackExplicit()
-      // ไม่ต้องใช้ deliverTo เพราะเป็น pull subscription
+  for (const [topic, field] of Object.entries(topicToFieldMap)) {
+    const sub = nc.subscribe(topic)
+    subscriptions.push(sub)
 
-      const sub = await js.pullSubscribe(subject, opts) as JetStreamPullSubscription
+    // ใช้ async iterator เพื่อ consume แต่ละ message จาก subject
+    ;(async () => {
+      for await (const msg of sub) {
+        try {
+          const decoded = jc.decode(msg.data) as { alert_id: string; data: any }
+          console.log(`📥 Received message on ${topic}:`, decoded)
 
-      ;(async () => {
-        console.log(`🌀 JetStream pull subscriber ready: ${subject}`)
+          const rawMsg: RawNATSMessage = { [topic]: decoded }
+          const inputs = transformNATSDataToGraphQLInput(rawMsg)
 
-        while (true) {
-          try {
-            sub.pull({ batch: 10, expires: 5000 })
+          for (const input of inputs) {
+            // 🔁 Mutation แบบ UPDATE สำหรับข้อมูลที่รับเข้ามา
+            const result = await resolvers.Mutation.AIAgentSummaryEdit(
+              null,
+              { action: 'UPDATE', input }
+            )
+            console.log(`✅ Mutation applied for alert_id=${input.alert_id}`)
 
-            for await (const msg of sub) {
-              const decoded = jc.decode(msg.data) as { data?: any }
-              if (decoded?.data !== undefined) {
-                // ส่งข้อมูลเข้า pubsub ให้ GraphQL Subscription ใช้งานได้
-                pubsub.publish(field, { [field]: decoded.data })
-
-                msg.ack()
-                console.log(`📥 ${subject} → ${field}`, decoded.data)
-              } else {
-                console.warn(`⚠️ ${subject} missing data field`, msg.data)
-              }
+            // Map GraphQL field จาก topic → field ใน input
+            const fieldMap: Record<keyof typeof topicToFieldMap, keyof AIAgentSummaryInput> = {
+              'agent.overview.updated': 'overviewUpdated',
+              'agent.tools.updated': 'toolStatusUpdated',
+              'agent.recommendation.updated': 'recommendationUpdated',
+              'agent.checklist.updated': 'checklistItemUpdated',
+              'agent.executive.updated': 'executiveItemUpdated',
+              'agent.attack.updated': 'attackTypeUpdated',
+              'agent.timeline.updated': 'timelineUpdated',
             }
-          } catch (err) {
-            console.error(`❌ Error on pull from ${subject}:`, err)
-            // รอ 1 วินาทีก่อน retry
-            await new Promise((resolve) => setTimeout(resolve, 1000))
+
+            const mappedKey = fieldMap[topic as keyof typeof fieldMap]
+            const valueToPublish = input[mappedKey]
+
+            // ✅ Publish เฉพาะ field ที่เป็น array และมีข้อมูลเท่านั้น
+            if (valueToPublish && Array.isArray(valueToPublish)) {
+              pubsub.publish(`${field}:${input.alert_id}`, {
+                [field]: valueToPublish
+              })
+              console.log(`📨 Published update on '${field}:${input.alert_id}'`)
+            } else {
+              console.warn(`⚠️ Skipped publish for '${field}:${input.alert_id}' — no data`)
+            }
           }
+        } catch (err) {
+          console.error(`❌ Error handling message from topic '${topic}':`, err)
         }
-      })()
-    }
-
-    // ====== เริ่มฟังพอร์ต HTTP + WS ======
-    httpServer.listen(PORT, () => {
-      console.log(`✅ HTTP + WS Server listening on http://localhost:${PORT}/graphql`)
-    })
-
-    // ====== Shutdown Gracefully ======
-    const shutdown = async () => {
-      console.log('🛑 Shutting down...')
-      if (serverCleanup) await serverCleanup.dispose()
-      if (httpServer) httpServer.close()
-      if (natsConnection) {
-        await natsConnection.drain()
-        console.log('✅ NATS connection drained')
       }
-      process.exit(0)
-    }
-
-    process.on('SIGINT', shutdown)
-    process.on('SIGTERM', shutdown)
-  } catch (err) {
-    console.error('❌ Failed to start server:', err)
-    process.exit(1)
+    })()
   }
+
+  // Graceful shutdown สำหรับ NATS + HTTP Server
+  const shutdown = async () => {
+    console.log('🛑 Shutting down...')
+
+    await serverCleanup.dispose()
+    httpServer.close(() => console.log('✅ HTTP server closed'))
+
+    for (const sub of subscriptions) sub.unsubscribe()
+    await nc.drain()
+    process.exit(0)
+  }
+
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
 }
 
 start()

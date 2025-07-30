@@ -18,27 +18,9 @@ import {
   ON_RECOMMENDATION_UPDATED,
   ON_CHECKLIST_UPDATED,
   ON_EXECUTIVE_UPDATED,
-  ON_ATTACKTYPE_UPDATED,
   ON_TIMELINE_UPDATED,
+  ON_ATTACKTYPE_UPDATED,
 } from './graphqlQueries'
-
-// กำหนดสีตามที่ SCSS ใช้ (ตัวอย่างสีเดียวกับ SCSS)
-const confidenceHigh = '#f87171';   // สีความมั่นใจสูง (status-missing)
-const confidenceMedium = '#facc15'; // สีความมั่นใจปานกลาง (status-inactive)
-const confidenceLow = '#4ade80';    // สีความมั่นใจต่ำ (status-active)
-const confidenceFallback = '#c084fc'; // fallback (purple-light)
-
-function getConfidenceColor(confidence: number): string {
-  if (confidence >= 0.8) {
-    return confidenceHigh;
-  } else if (confidence >= 0.5) {
-    return confidenceMedium;
-  } else if (confidence >= 0) {
-    return confidenceLow;
-  } else {
-    return confidenceFallback;
-  }
-}
 
 const statusColorMap: Record<ToolStatus['status'] | 'fallback', string> = {
   active: '#4ade80',    // $status-active
@@ -47,6 +29,10 @@ const statusColorMap: Record<ToolStatus['status'] | 'fallback', string> = {
   missing: '#f87171',   // $status-missing
   fallback: '#c084fc',  // $purple-light
 };
+
+interface Props {
+  alert_id: string
+}
 
 // ------------------------------------------------------------
 // AttackTypeCard: แสดง tactic และ confidence
@@ -59,33 +45,76 @@ interface AttackTypeData {
 }
 
   // รับข้อมูลเป็น array ของ AttackTypeData
-export function AttackTypeCard() {
+export function AttackTypeCard({ alert_id }: Props) {
+  const [attackTypes, setAttackTypes] = useState<AttackTypeData[]>([]);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isConnectedOnce, setIsConnectedOnce] = useState(false); // เคย connect สำเร็จอย่างน้อย 1 ครั้ง
+
+  const onFirstConnectLogged = useRef(false); // กัน log ซ้ำตอนแรก
+
   const { data, loading, error } = useSubscription<{ onAttackTypeUpdated: AttackTypeData[] }>(
-    ON_ATTACKTYPE_UPDATED
-  )
+    ON_ATTACKTYPE_UPDATED,
+    {
+      variables: { alert_id },
+      onSubscriptionData: ({ subscriptionData, client }) => {
+        const newData = subscriptionData.data?.onAttackTypeUpdated;
 
-  const attackTypes = useMemo(() => data?.onAttackTypeUpdated ?? [], [data])
+        console.debug('[SUB] SubscriptionData received:', newData);
+        console.debug('[SUB] Apollo client connection state:', client);
 
-  if (loading)
+        if (newData && Array.isArray(newData)) {
+          setAttackTypes(newData);
+          setConnectionError(null);
+          setIsConnectedOnce(true);
+
+          console.log('[SUB] Updated attackTypes:', newData);
+        } else {
+          console.warn('[SUB] Received payload is not valid:', newData);
+        }
+      },
+      onError: (err) => {
+        setConnectionError(err.message);
+        console.error('[SUB] WebSocket subscription error:', err);
+      },
+    }
+  );
+
+  // Log สถานะการโหลดและการเชื่อมต่อ (ใช้แยกจาก onSubscriptionData เพื่อดู loop lifecycle)
+  useEffect(() => {
+    if (!onFirstConnectLogged.current && !loading) {
+      console.log('[SUB] WebSocket connection established.');
+      onFirstConnectLogged.current = true;
+    }
+
+    console.log('[SUB] Loading:', loading);
+    console.log('[SUB] Current data length:', attackTypes.length);
+    console.log('[SUB] Connection error:', connectionError);
+  }, [loading, attackTypes.length, connectionError]);
+
+  // Render UI ตามสถานะ
+  if (loading && !isConnectedOnce) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
         <CircularProgress size={24} />
       </Box>
-    )
+    );
+  }
 
-  if (error)
+  if (connectionError) {
     return (
       <Typography color="error" sx={{ m: 2 }}>
-        Error loading attack types: {error.message}
+        Connection error: {connectionError}
       </Typography>
-    )
+    );
+  }
 
-  if (attackTypes.length === 0)
+  if (attackTypes.length === 0) {
     return (
       <Typography sx={{ m: 2 }} color="text.secondary">
         No attack types available.
       </Typography>
-    )
+    );
+  }
 
   return (
     <Box className="card-wrapper">
@@ -94,19 +123,13 @@ export function AttackTypeCard() {
           <Typography className="content-text">
             {item.tacticID} - {item.tacticName}
           </Typography>
-          <Typography className="content-text">
-            Confidence Score:{' '}
-            <Box
-              component="span"
-              sx={{ color: getConfidenceColor(item.confidence), fontWeight: 'bold' }}
-            >
-              {item.confidence}
-            </Box>
+          <Typography className="content-text" sx={{ fontWeight: 'bold' }}>
+            Confidence Score: {item.confidence}
           </Typography>
         </Box>
       ))}
     </Box>
-  )
+  );
 }
 
 
@@ -119,10 +142,20 @@ interface ChecklistData {
   content: string;
 }
 
-export function ChecklistItem() {
+export function ChecklistItem({ alert_id }: Props) {
   const { data, loading, error } = useSubscription<{ onChecklistItemUpdated: ChecklistData[] }>(
-    ON_CHECKLIST_UPDATED
+    ON_CHECKLIST_UPDATED,
+    {
+      variables: { alert_id },
+    }
   );
+
+  useEffect(() => {
+    if (data) {
+      console.log('[SUB] onChecklistItemUpdated:', data.onChecklistItemUpdated)
+    }
+  }, [data]);
+
 
   const checklist = useMemo(() => data?.onChecklistItemUpdated ?? [], [data]);
 
@@ -134,21 +167,21 @@ export function ChecklistItem() {
     );
   }
 
-  if (error) {
-    return (
-      <Typography color="error" sx={{ m: 2 }}>
-        Error loading checklist: {error.message}
-      </Typography>
-    );
-  }
+  // if (error) {
+  //   return (
+  //     <Typography color="error" sx={{ m: 2 }}>
+  //       Error loading checklist: {error.message}
+  //     </Typography>
+  //   );
+  // }
 
-  if (checklist.length === 0) {
-    return (
-      <Typography sx={{ m: 2 }} color="text.secondary">
-        No checklist items available.
-      </Typography>
-    );
-  }
+  // if (checklist.length === 0) {
+  //   return (
+  //     <Typography sx={{ m: 2 }} color="text.secondary">
+  //       No checklist items available.
+  //     </Typography>
+  //   );
+  // }
 
   return (
     <>
@@ -177,8 +210,17 @@ function getStatusColor(status: ToolStatus['status']): string {
   return statusColorMap[status] ?? statusColorMap.fallback;
 }
 
-export const CustomerToolsCard: React.FC = () => {
-  const { data, loading, error } = useSubscription<{ onToolStatusUpdated: ToolStatus[] }>(ON_TOOLS_UPDATED);
+export const CustomerToolsCard: React.FC<Props> = ({ alert_id }) => {
+  const { data, loading, error } = useSubscription<{ onToolStatusUpdated: ToolStatus[] }>(ON_TOOLS_UPDATED,
+    {
+      variables: { alert_id },
+    });
+
+   useEffect(() => {
+    if (data) {
+      console.log('[SUB] onToolStatusUpdated:', data.onToolStatusUpdated)
+    }
+  }, [data]);
 
   const tools = useMemo(() => data?.onToolStatusUpdated ?? [], [data]);
 
@@ -189,19 +231,19 @@ export const CustomerToolsCard: React.FC = () => {
       </Box>
     );
 
-  if (error)
-    return (
-      <Typography color="error" sx={{ m: 2 }}>
-        Error loading tools status: {error.message}
-      </Typography>
-    );
+  // if (error)
+  //   return (
+  //     <Typography color="error" sx={{ m: 2 }}>
+  //       Error loading tools status: {error.message}
+  //     </Typography>
+  //   );
 
-  if (tools.length === 0)
-    return (
-      <Typography sx={{ m: 2 }} color="text.secondary">
-        No tools status available.
-      </Typography>
-    );
+  // if (tools.length === 0)
+  //   return (
+  //     <Typography sx={{ m: 2 }} color="text.secondary">
+  //       No tools status available.
+  //     </Typography>
+  //   );
 
   return (
     <Box className="card-wrapper">
@@ -235,10 +277,19 @@ interface ExecutiveData {
   content: string;
 }
 
-export const ExecutiveSummaryItem: React.FC = () => {
+export const ExecutiveSummaryItem: React.FC<Props> = ({ alert_id }) => {
   const { data, loading, error } = useSubscription<{ onExecutiveItemUpdated: ExecutiveData[] }>(
-    ON_EXECUTIVE_UPDATED
+    ON_EXECUTIVE_UPDATED,
+    {
+      variables: { alert_id },
+    }
   )
+
+  useEffect(() => {
+    if (data) {
+      console.log('[SUB] onExecutiveItemUpdated:', data.onExecutiveItemUpdated)
+    }
+  }, [data])
 
   const executive = useMemo(() => data?.onExecutiveItemUpdated ?? [], [data])
 
@@ -249,19 +300,19 @@ export const ExecutiveSummaryItem: React.FC = () => {
       </Box>
     )
 
-  if (error)
-    return (
-      <Typography color="error" sx={{ m: 2 }}>
-        Error loading executive summary: {error.message}
-      </Typography>
-    )
+  // if (error)
+  //   return (
+  //     <Typography color="error" sx={{ m: 2 }}>
+  //       Error loading executive summary: {error.message}
+  //     </Typography>
+  //   )
 
-  if (executive.length === 0)
-    return (
-      <Typography sx={{ m: 2, color: 'text.secondary' }}>
-        No executive summary data available.
-      </Typography>
-    )
+  // if (executive.length === 0)
+  //   return (
+  //     <Typography sx={{ m: 2, color: 'text.secondary' }}>
+  //       No executive summary data available.
+  //     </Typography>
+  //   )
 
   return (
     <>
@@ -285,10 +336,19 @@ interface OverviewData {
   description: string;
 }
 
-export function OverviewCard() {
+export function OverviewCard({ alert_id }: Props) {
   const { data, loading, error } = useSubscription<{ onOverviewUpdated: OverviewData[] }>(
-    ON_OVERVIEW_UPDATED
+    ON_OVERVIEW_UPDATED,
+    {
+      variables: { alert_id },
+    }
   )
+
+  useEffect(() => {
+    if (data) {
+      console.log('[SUB] onOverviewUpdated:', data.onOverviewUpdated)
+    }
+  }, [data])
 
   const overviewList = useMemo(() => data?.onOverviewUpdated ?? [], [data])
 
@@ -299,19 +359,19 @@ export function OverviewCard() {
       </Box>
     )
 
-  if (error)
-    return (
-      <Typography color="error" sx={{ m: 2 }}>
-        Error loading overview: {error.message}
-      </Typography>
-    )
+  // if (error)
+  //   return (
+  //     <Typography color="error" sx={{ m: 2 }}>
+  //       Error loading overview: {error.message}
+  //     </Typography>
+  //   )
 
-  if (overviewList.length === 0)
-    return (
-      <Typography sx={{ m: 2, color: 'text.secondary' }}>
-        No overview description available.
-      </Typography>
-    )
+  // if (overviewList.length === 0)
+  //   return (
+  //     <Typography sx={{ m: 2, color: 'text.secondary' }}>
+  //       No overview description available.
+  //     </Typography>
+  //   )
 
   return (
     <Box className="overviewAgent-card">
@@ -333,10 +393,19 @@ interface RecommendationData {
   content: string;
 }
 
-export function RecommendationCard() {
+export function RecommendationCard({ alert_id }: Props) {
   const { data, loading, error } = useSubscription<{ onRecommendationUpdated: RecommendationData[] }>(
-    ON_RECOMMENDATION_UPDATED
+    ON_RECOMMENDATION_UPDATED,
+    {
+      variables: { alert_id },
+    }
   )
+
+  useEffect(() => {
+    if (data) {
+      console.log('[SUB] onRecommendationUpdated:', data.onRecommendationUpdated)
+    }
+  }, [data])
 
   const [debouncedRecommendation, setDebouncedRecommendation] = useState<RecommendationData[]>([])
 
@@ -362,19 +431,19 @@ export function RecommendationCard() {
       </Box>
     )
 
-  if (error)
-    return (
-      <Typography color="error" sx={{ m: 2 }}>
-        Error loading recommendation: {error.message}
-      </Typography>
-    )
+  // if (error)
+  //   return (
+  //     <Typography color="error" sx={{ m: 2 }}>
+  //       Error loading recommendation: {error.message}
+  //     </Typography>
+  //   )
 
-  if (!debouncedRecommendation.length)
-    return (
-      <Typography sx={{ m: 2, color: 'text.secondary' }}>
-        No recommendation available.
-      </Typography>
-    )
+  // if (!debouncedRecommendation.length)
+  //   return (
+  //     <Typography sx={{ m: 2, color: 'text.secondary' }}>
+  //       No recommendation available.
+  //     </Typography>
+  //   )
 
   return (
     <>
@@ -415,10 +484,19 @@ interface TimelineData {
   errorMessage?: string
 }
 
-export function TimelineProcess() {
+export function TimelineProcess({ alert_id }: Props) {
   const { data, loading, error } = useSubscription<{ onTimelineUpdated: TimelineData[] }>(
-    ON_TIMELINE_UPDATED
+    ON_TIMELINE_UPDATED,
+    {
+      variables: { alert_id },
+    }
   )
+
+  useEffect(() => {
+    if (data) {
+      console.log('[SUB] onTimelineUpdated:', data.onTimelineUpdated)
+    }
+  }, [data])
 
   const [debouncedTimeline, setDebouncedTimeline] = useState<TimelineData[] | null>(null)
   const [openError, setOpenError] = useState<{ stage: string; message: string } | null>(null)
@@ -456,12 +534,12 @@ export function TimelineProcess() {
     return cleanup
   }, [debounceUpdate])
 
-  if (error)
-    return (
-      <Typography color="error" sx={{ m: 2 }}>
-        Error loading timeline: {error.message}
-      </Typography>
-    )
+  // if (error)
+  //   return (
+  //     <Typography color="error" sx={{ m: 2 }}>
+  //       Error loading timeline: {error.message}
+  //     </Typography>
+  //   )
 
   return (
     <>
@@ -549,7 +627,7 @@ export function TimelineProcess() {
 // ไม่มีข้อมูลจาก WebSocket
 // ------------------------------------------------------------
 interface FooterProps {
-  role: 'soc-dev' | 'customer' | 'testWS';
+  role: 'soc-dev' | 'customer';
   setRole: (role: FooterProps['role']) => void;
 }
 
@@ -590,9 +668,6 @@ export function Footer({ role, setRole }: FooterProps) {
         </RoleButton>
         <RoleButton roleName="customer" currentRole={role} onClick={setRole}>
           CUSTOMER
-        </RoleButton>
-        <RoleButton roleName="testWS" currentRole={role} onClick={setRole}>
-          CUSTOMER SUCCESS
         </RoleButton>
       </Box>
     </Box>
